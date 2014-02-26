@@ -54,6 +54,8 @@ validate_event(_Dir, []) ->
     ok;
 validate_event(Dir, [{Key,Value}|Kvs]) ->
     case Key of
+	reg_exp when Dir =:= in, is_list(Value) ->
+	    validate_event(Dir, Kvs);
 	smsc when is_list(Value) ->
 	    %% FIXME: validate msisdn
 	    validate_event(Dir, Kvs);

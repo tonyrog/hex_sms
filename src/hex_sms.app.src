@@ -1,13 +1,13 @@
 {application, hex_sms,
  [
   {description, "hex SMS plugin"},
-  {vsn, "1"},
+  {vsn, git},
   {registered, []},
   {applications, [
                   kernel,
                   stdlib,
-		  gsms
+		  gsms,
+		  hex
                  ]},
-  {mod, { hex_sms_app, []}},
-  {env, []}
+  {mod, { hex_sms_app, []}}
  ]}.

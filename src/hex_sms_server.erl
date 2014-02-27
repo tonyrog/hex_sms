@@ -126,12 +126,12 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info({gsms, Ref, _Pdu}, State) ->
+handle_info({gsms, Ref, Pdu}, State) ->
     case lists:keyfind(Ref, 1, State#state.subs) of
 	false ->
 	    {noreply, State};
 	{_Ref,Signal} ->
-	    hex_server ! Signal,
+	    hex_server:event(Signal, [{pdu,Pdu}]),
 	    {noreply, State}
     end;
 handle_info(_Info, State) ->

@@ -36,6 +36,6 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    HexSmsServer = {hex_sms_server, {hex_sms_server, start_link, []},
+    Server = {hex_sms_server, {hex_sms_server, start_link, []},
 		    permanent, 5000, worker, [hex_sms_server]},
-    {ok, { {one_for_one,3,5}, [HexSmsServer]} }.
+    {ok, { {one_for_one,3,5}, [Server]} }.

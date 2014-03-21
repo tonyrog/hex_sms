@@ -48,14 +48,15 @@ del_event(Ref) ->
 %% output(Flags::[{atom(),term()}], Env::[{atom(),term()}]) ->
 %%    ok.
 %%
-output(Flags, _Env) ->
+output(Flags, Env) ->
     Body = proplists:get_value(body, Flags, ""),
+    Body1  = hex:text_expand(Body, Env),
     {Fs,_} = proplists:split(Flags, [smsc,rp,udhi,udh,srr,mref,
 				     vpf,vp,addr,pid,dcs,type,class,
 				     alphabet,compression,store,wait_type,
 				     notify,ref]),
     Opts = lists:append(Fs),
-    gsms:send(Opts, Body).
+    gsms:send(Opts, Body1).
 
 %%
 %% init_event(in | out, Flags::[{atom(),term()}])
@@ -66,76 +67,82 @@ init_event(_, _) ->
 %%
 %% validate_event(in | out, Flags::[{atom(),term()}])
 %%
-validate_event(_Dir, []) ->
-    ok;
-validate_event(Dir, [{Key,Value}|Kvs]) ->
-    case Key of
-	reg_exp when Dir =:= in, is_list(Value) ->
-	    validate_event(Dir, Kvs);
-	smsc when is_list(Value) ->
-	    %% FIXME: validate msisdn
-	    validate_event(Dir, Kvs);
-	rp when is_boolean(Value) ->
-	    validate_event(Dir, Kvs);
-	udhi when is_boolean(Value) ->
-	    validate_event(Dir, Kvs);
-	udh when Value =:= [] ->
-	    validate_event(Dir, Kvs);
-	udh when is_list(Value) ->
-	    %% FIXME: validate udh codings
-	    validate_event(Dir, Kvs);
-	srr when is_boolean(Value) ->
-	    validate_event(Dir, Kvs);
-	mref when is_integer(Value), Value>=0, Value=< 255 ->
-	    validate_event(Dir, Kvs);
-	vpf when Value =:= none;
-		 Value =:= relative; 
-		 Value =:= enhanced; 
-		 Value =:= absolute ->
-	    validate_event(Dir, Kvs);
-	vp ->
-	    case Value of
-		none ->
-		    validate_event(Dir, Kvs);
-		{relative, Seconds} when is_integer(Seconds), Seconds>=0 ->
-		    validate_event(Dir, Kvs);
-		{absolute,DateTimeTz} ->
-		    case gsms_codec:is_valid_scts(DateTimeTz) of
-			true ->
-			    validate_event(Dir, Kvs);
-			false ->
-			    {error, badarg}
-		    end;
-		{enhanced,_} ->
-		    {error, not_supported}  %% yet
-	    end;
-	addr when is_list(Value) ->
-	    %% FIXME: validate msisdn
-	    validate_event(Dir, Kvs);
-	pid when is_integer(Value), Value>=0, Value=<255 ->
-	    validate_event(Dir, Kvs);
-	dcs when is_integer(Value) ->
-	    _Dcs = gsms_codec:decode_dcs(Value),
-	    validate_event(Dir, Kvs);
-	type -> %% fixme test
-	    validate_event(Dir, Kvs);
-	class -> %% fixme test
-	    validate_event(Dir, Kvs);
-	alphabet -> %% fixme test
-	    validate_event(Dir, Kvs);
-	compression -> %% fixme test
-	    validate_event(Dir, Kvs);
-	store -> %% fixme test
-	    validate_event(Dir, Kvs);
-	wait_type -> %% fixme test
-	    validate_event(Dir, Kvs);
-	%% recognized options, but not for pdu
-	notify ->  %% fixme test?
-	    validate_event(Dir, Kvs);
-	ref ->  %% fixme test?
-	    validate_event(Dir, Kvs);
-	_ ->
-	    lager:debug("validate_event: unknown pdu option ~p", 
-			[{Key,Value}]),
-	    {error, badarg}
+validate_event(in, Flags) ->
+    case hex:validate_flags(Flags, input_spec()) of
+	ok -> ok;
+	Error={error,Es} ->
+	    lager:debug("validate_event: input option error ~p", [Es]),
+	    Error
+    end;
+validate_event(out, Flags) ->
+    case hex:validate_flags(Flags, output_spec()) of
+	ok -> ok;
+	Error={error,Es} ->
+	    lager:debug("validate_event: output option error ~p", [Es]),
+	    Error
+    end.
+
+input_spec() ->
+    [ {reg_exp, optional, string, ""} |
+      spec() ].
+
+output_spec() ->     
+    spec().
+
+spec() ->
+    [ {body, mandatory, string, ""},
+      {smsc, optional, fun is_msisdn/1, ""},
+      {rp, optional, boolean, false },
+      {udhi, optional, boolean, false },
+      {udh, optional, fun is_udh/1, []},
+      {srr, optional, boolean, false },
+      {mref,optional, unsigned8, 0},
+      {vpf,optional,{alt,[{const,none},{const,relative},
+			  {const,enhanced},{const,absolute}]}, none},
+      {vp,optional,{alt,[{const,none},
+			 {tuple,[{const,relative},unsigned]},
+			 {tuple,[{const,absolute},
+				 fun gsms_codec:is_valid_scts/1]}
+			 %%{enhanced,_} fixme
+			]},none},
+      {addr, optional, fun is_msisdn/1, ""},
+      {pid, optional, unsigned8, 0},
+      {dcs, optional, fun is_dcs/1, 0},
+      {type, optional, {alt,[{const,message},{const,data},
+			    {cost,message_waiting}]}, message},
+      {class, optional, {alt,[{const,alert},{const,me},
+			      {const,sim},{const,te}]}, alert},
+
+      {alphabet, optional, {alt,[{const,default},
+				 {const,octet},
+				 {const,ucs2},
+				 {const,reserved}
+				]}, default},
+      {compression, optional,{alt,[{const,compressed},
+				   {const,uncompressed}]}, uncompressed},
+
+      {wait_type, optional, {alt,[{const,voicemail},{const,fax},
+				  {const,email},{const,other}]}, other},
+      {ref, optional, unsigned16, 1}
+    ].
+
+
+is_udh(UDH) ->
+    try gsms_codec:encode_udh(UDH) of
+	_Data -> true
+    catch
+	error:_ -> false
+    end.
+
+is_msisdn(Number) when is_list(Number) ->
+    %% FIXME: check valid number codes
+    true;
+is_msisdn(_) ->
+    false.
+
+is_dcs(Value) when is_integer(Value) ->
+    try gsms_codec:decode_dcs(Value) of
+	_Dcs -> true
+    catch
+	error:_ -> false
     end.

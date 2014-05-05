@@ -129,8 +129,9 @@ validate_event(Dir, Flags) ->
     hex:validate_flags(Flags, event_spec(Dir)).
     
 event_spec(in) ->
-    [ {leaf, reg_exp, [{type, string, []}, {default,"",[]}]} |
-      spec() ];
+    [ {leaf, reg_exp, [{type, string, []}, {default,"",[]}]},
+      {leaf, rssi, [{type, boolean, []}, {default, false, []}]} 
+      | spec() ];
 event_spec(out) ->
     spec().
 

@@ -105,7 +105,8 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call({add_event,Pid,Flags,Signal,Cb}, _From, State) ->
     {Fs,_Pattern1} = proplists:split(Flags, [type,class,alphabet,pid,src,dst,
-					     anumber,bnumber,smsc,reg_exp]),
+					     anumber,bnumber,smsc,reg_exp,
+					     rssi]),
     Filter = lists:append(Fs),
     case gsms:subscribe(Filter) of
 	{ok,Ref} ->
@@ -162,7 +163,12 @@ handle_info({gsms, Ref, Pdu}, State) ->
 	false ->
 	    {noreply, State};
 	Sub ->
-	    callback(Sub#sub.callback, Sub#sub.signal, [{pdu,Pdu}]),
+	    case Pdu of
+		{rssi,Value} ->
+		    callback(Sub#sub.callback, Sub#sub.signal, [{value,Value}]);
+		_ ->
+		    callback(Sub#sub.callback, Sub#sub.signal, [{pdu,Pdu}])
+	    end,
 	    {noreply, State}
     end;
 handle_info({'DOWN',Mon,process,_Pid,_Reason}, State) ->

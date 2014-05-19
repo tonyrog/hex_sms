@@ -130,7 +130,8 @@ validate_event(Dir, Flags) ->
     
 event_spec(in) ->
     [ {leaf, reg_exp, [{type, string, []}, {default,"",[]}]},
-      {leaf, rssi, [{type, boolean, []}, {default, false, []}]} 
+      {leaf, rssi, [{type, boolean, []}, {default, false, []}]},
+      {leaf, creg, [{type, boolean, []}, {default, false, []}]}
       | spec() ];
 event_spec(out) ->
     spec().
